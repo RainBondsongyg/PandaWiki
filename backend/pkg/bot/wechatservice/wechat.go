@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -19,6 +20,14 @@ import (
 	"github.com/chaitin/panda-wiki/log"
 	"github.com/chaitin/panda-wiki/pkg/bot"
 )
+
+// getMinioBaseURL returns minio base URL from environment variable or default
+func getMinioBaseURL() string {
+	if minioHost := os.Getenv("MINIO_HOST"); minioHost != "" {
+		return fmt.Sprintf("http://%s:9000", minioHost)
+	}
+	return "http://panda-wiki-minio:9000"
+}
 
 func NewWechatServiceConfig(ctx context.Context, CorpID, Token, EncodingAESKey string, kbid string, secret string, logger *log.Logger) (*WechatServiceConfig, error) {
 	return &WechatServiceConfig{
@@ -181,7 +190,7 @@ func (cfg *WechatServiceConfig) SendResponseToKfUrl(userId, openkfId, conversati
 	var imageId string
 	var err error
 	if image != "" && !strings.HasPrefix(image, "data:image/") { // user own image and not base64 image
-		imageId, err = GetUserImageID(token, fmt.Sprintf("%s%s", "http://panda-wiki-minio:9000", image))
+		imageId, err = GetUserImageID(token, fmt.Sprintf("%s%s", getMinioBaseURL(), image))
 		if err != nil {
 			return err
 		}

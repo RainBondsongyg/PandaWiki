@@ -74,6 +74,56 @@ type S3Config struct {
 	SecretKey string `mapstructure:"secret_key"`
 }
 
+// getMinioEndpoint returns minio endpoint from environment variable or default
+func getMinioEndpoint() string {
+	if minioHost := os.Getenv("MINIO_HOST"); minioHost != "" {
+		return minioHost + ":9000"
+	}
+	return "panda-wiki-minio:9000"
+}
+
+// getPostgresHost returns postgres host from environment variable or default
+func getPostgresHost() string {
+	if pgHost := os.Getenv("POSTGRES_HOST"); pgHost != "" {
+		return pgHost
+	}
+	return "panda-wiki-postgres"
+}
+
+// getRedisAddr returns redis address from environment variable or default
+func getRedisAddr() string {
+	if redisHost := os.Getenv("REDIS_HOST"); redisHost != "" {
+		return redisHost + ":6379"
+	}
+	return "panda-wiki-redis:6379"
+}
+
+// getNatsServer returns NATS server URL from environment variable or default
+func getNatsServer() string {
+	if natsHost := os.Getenv("NATS_HOST"); natsHost != "" {
+		return fmt.Sprintf("nats://%s:4222", natsHost)
+	}
+	// fallback to SUBNET_PREFIX based configuration
+	SUBNET_PREFIX := os.Getenv("SUBNET_PREFIX")
+	if SUBNET_PREFIX == "" {
+		SUBNET_PREFIX = "169.254.15"
+	}
+	return fmt.Sprintf("nats://%s.13:4222", SUBNET_PREFIX)
+}
+
+// getRagBaseURL returns RAG base URL from environment variable or default
+func getRagBaseURL() string {
+	if ragHost := os.Getenv("RAG_HOST"); ragHost != "" {
+		return fmt.Sprintf("http://%s:8080/api/v1", ragHost)
+	}
+	// fallback to SUBNET_PREFIX based configuration
+	SUBNET_PREFIX := os.Getenv("SUBNET_PREFIX")
+	if SUBNET_PREFIX == "" {
+		SUBNET_PREFIX = "169.254.15"
+	}
+	return fmt.Sprintf("http://%s.18:8080/api/v1", SUBNET_PREFIX)
+}
+
 func NewConfig() (*Config, error) {
 	// set default config
 	SUBNET_PREFIX := os.Getenv("SUBNET_PREFIX")
@@ -89,12 +139,12 @@ func NewConfig() (*Config, error) {
 			Port: 8000,
 		},
 		PG: PGConfig{
-			DSN: "host=panda-wiki-postgres user=panda-wiki password=panda-wiki-secret dbname=panda-wiki port=5432 sslmode=disable TimeZone=Asia/Shanghai",
+			DSN: fmt.Sprintf("host=%s user=panda-wiki password=panda-wiki-secret dbname=panda-wiki port=5432 sslmode=disable TimeZone=Asia/Shanghai", getPostgresHost()),
 		},
 		MQ: MQConfig{
 			Type: "nats",
 			NATS: NATSConfig{
-				Server:   fmt.Sprintf("nats://%s.13:4222", SUBNET_PREFIX),
+				Server:   getNatsServer(),
 				User:     "panda-wiki",
 				Password: "",
 			},
@@ -102,12 +152,12 @@ func NewConfig() (*Config, error) {
 		RAG: RAGConfig{
 			Provider: "ct",
 			CTRAG: CTRAGConfig{
-				BaseURL: fmt.Sprintf("http://%s.18:8080/api/v1", SUBNET_PREFIX),
+				BaseURL: getRagBaseURL(),
 				APIKey:  "sk-1234567890",
 			},
 		},
 		Redis: RedisConfig{
-			Addr:     "panda-wiki-redis:6379",
+			Addr:     getRedisAddr(),
 			Password: "",
 		},
 		Auth: AuthConfig{
@@ -115,7 +165,7 @@ func NewConfig() (*Config, error) {
 			JWT:  JWTConfig{Secret: ""},
 		},
 		S3: S3Config{
-			Endpoint:  "panda-wiki-minio:9000",
+			Endpoint:  getMinioEndpoint(),
 			AccessKey: "s3panda-wiki",
 			SecretKey: "",
 		},
@@ -150,7 +200,7 @@ func NewConfig() (*Config, error) {
 // overrideWithEnv override sensitive info with env variables
 func overrideWithEnv(c *Config) {
 	if env := os.Getenv("POSTGRES_PASSWORD"); env != "" {
-		c.PG.DSN = fmt.Sprintf("host=panda-wiki-postgres user=panda-wiki password=%s dbname=panda-wiki port=5432 sslmode=disable TimeZone=Asia/Shanghai", env)
+		c.PG.DSN = fmt.Sprintf("host=%s user=panda-wiki password=%s dbname=panda-wiki port=5432 sslmode=disable TimeZone=Asia/Shanghai", getPostgresHost(), env)
 	}
 	if env := os.Getenv("NATS_PASSWORD"); env != "" {
 		c.MQ.NATS.Password = env
